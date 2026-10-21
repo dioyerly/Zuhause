@@ -1,0 +1,13 @@
+# Zuhause SaaS · Apache (Hostinger)
+Options -Indexes
+# Hostinger/PHP-FPM a veces no pasa el header Authorization
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+# Nada de código interno ni de datos por web
+RedirectMatch 404 ^/(lib|storage|tests)(/|$)
+<FilesMatch "^(config(\.example)?\.php|schema\.sql|README\.md|\.htaccess)$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000"
+</IfModule>
