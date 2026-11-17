@@ -292,7 +292,7 @@ var WHATSAPP_MENSAJE = 'Hola, tengo una consulta sobre Zuhause';
       sc.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&vault=true&intent=subscription';
       sc.onload = function () {
         paypal.Buttons({
-          style: { shape: 'rect', color: 'gold', layout: 'vertical', label: 'subscribe' },
+          style: { shape: 'pill', color: 'silver', layout: 'vertical', label: 'subscribe' },
           createSubscription: function (d, a) { return a.subscription.create({ plan_id: PAYPAL_PLAN_ID }); },
           onApprove: function (d) { pn.textContent = 'Listo, te llevamos a crear tu usuario…'; location.href = 'alta.php?subscription_id=' + encodeURIComponent(d.subscriptionID); },
           onError: function () { pn.textContent = 'No pudimos iniciar el pago con PayPal. Probá de nuevo o escribinos por WhatsApp.'; }
