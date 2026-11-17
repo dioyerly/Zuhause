@@ -32,7 +32,7 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
 .btn:hover{background-position:100% 0;transform:translateY(-2px);box-shadow:0 14px 34px -10px rgba(92,26,46,.9)}
 .btn.sm{padding:11px 20px;font-size:.95rem}
 .btn.xl{padding:22px 44px;font-size:1.25rem}
-.pp{margin:18px 0 0;max-width:360px}.pp[hidden]{display:none}.pp small{display:block;color:var(--mist);margin-top:10px;font-size:.88rem}
+.pp{margin:18px 0 0;max-width:360px}.pp-hero{margin-top:14px;max-width:300px}.pp-hero small{margin:0 0 8px}.pp[hidden]{display:none}.pp small{display:block;color:var(--mist);margin-top:10px;font-size:.88rem}
 
 /* nav */
 .nav{position:fixed;z-index:50;top:14px;left:50%;transform:translateX(-50%);width:min(var(--max),calc(100% - 28px));display:flex;justify-content:space-between;align-items:center;padding:8px 8px 8px 22px;border-radius:999px;background:rgba(12,20,36,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08)}
@@ -176,6 +176,7 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
     <h1>Hoy se te va a olvidar algo.</h1>
     <p class="sub">Zuhause junta las cuentas, los turnos y las tareas de toda la familia en un solo lugar.</p>
     <div class="cta"><a class="btn xl" data-sub href="#precio">Suscribirme</a><span><b>3 días gratis</b> · después $10.999 por mes durante un año</span></div>
+    <div class="pp pp-hero" id="pp2" hidden><small id="ppn2"></small><div id="pp-btn2"></div></div>
   </div>
   <div class="olv" aria-hidden="true">
     <div class="n"><i></i><div><strong>La luz venció ayer</strong><small>$ 32.000 · nadie la pagó</small></div></div>
@@ -278,7 +279,7 @@ var LINK_SUSCRIPCION = 'https://mpago.la/1zLxPC8';
 var PAYPAL_ACTIVO    = true;             // true cuando PayPal esté configurado (muestra el botón para clientes del exterior)
 var PAYPAL_CLIENT_ID = 'BAAoJ0ZdXt7Fmu_NfuC0dkabclJbo-OKc1fbHL5d92HrcRvmtdX39-6byrpr3gAbvD0r-i1zSklEdXSIrE';   // público (no es el Secret)
 var PAYPAL_PLAN_ID   = 'P-0NJ48131D7653362HNL6G7TI';
-var PAYPAL_PRECIO    = '';               // ej: 'USD 9 por mes' (debe coincidir con el plan de PayPal)
+var PAYPAL_PRECIO    = 'USD 7,50 por mes';               // ej: 'USD 9 por mes' (debe coincidir con el plan de PayPal)
 var WHATSAPP_NUMERO  = '5491126425994';   // código de país + área + número, sin + ni espacios
 var WHATSAPP_MENSAJE = 'Hola, tengo una consulta sobre Zuhause';
 /* ==================================== */
@@ -286,20 +287,25 @@ var WHATSAPP_MENSAJE = 'Hola, tengo una consulta sobre Zuhause';
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   $$('[data-sub]').forEach(function (a) { a.href = LINK_SUSCRIPCION; });
   if (PAYPAL_ACTIVO) {
-    var pf = $('#pp'), pn = $('#ppn');
+    var pf = $('#pp'), pn = $('#ppn'), pf2 = $('#pp2'), pn2 = $('#ppn2');
     if (pf) {
-      pf.hidden = false; pn.textContent = 'Clientes del exterior: pagá con tarjeta o cuenta PayPal' + (PAYPAL_PRECIO ? ' · ' + PAYPAL_PRECIO : '');
+      var txt = 'Clientes del exterior: pagá con tarjeta o cuenta PayPal' + (PAYPAL_PRECIO ? ' · ' + PAYPAL_PRECIO : '');
+      pf.hidden = false; pn.textContent = txt;
+      if (pf2) { pf2.hidden = false; pn2.textContent = txt; }
       var sc = document.createElement('script');
       sc.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&vault=true&intent=subscription';
       sc.onload = function () {
-        paypal.Buttons({
-          style: { shape: 'pill', color: 'silver', layout: 'vertical', label: 'subscribe' },
-          createSubscription: function (d, a) { return a.subscription.create({ plan_id: PAYPAL_PLAN_ID }); },
-          onApprove: function (d) { pn.textContent = 'Listo, te llevamos a crear tu usuario…'; location.href = 'alta.php?subscription_id=' + encodeURIComponent(d.subscriptionID); },
-          onError: function () { pn.textContent = 'No pudimos iniciar el pago con PayPal. Probá de nuevo o escribinos por WhatsApp.'; }
-        }).render('#pp-btn');
+        ['#pp-btn', '#pp-btn2'].forEach(function (sel) {
+          if (!$(sel)) return;
+          paypal.Buttons({
+            style: { shape: 'pill', color: 'silver', layout: 'vertical', label: 'subscribe' },
+            createSubscription: function (d, a) { return a.subscription.create({ plan_id: PAYPAL_PLAN_ID }); },
+            onApprove: function (d) { pn.textContent = 'Listo, te llevamos a crear tu usuario…'; location.href = 'alta.php?subscription_id=' + encodeURIComponent(d.subscriptionID); },
+            onError: function () { pn.textContent = 'No pudimos iniciar el pago con PayPal. Probá de nuevo o escribinos por WhatsApp.'; }
+          }).render(sel);
+        });
       };
-      sc.onerror = function () { pf.hidden = true; };
+      sc.onerror = function () { pf.hidden = true; if (pf2) pf2.hidden = true; };
       document.head.appendChild(sc);
     }
   }
