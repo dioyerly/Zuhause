@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/lib/mp.php';
+require_once __DIR__ . '/lib/paypal.php';
 require_once __DIR__ . '/lib/export.php';
 /* Panel del dueño: clientes, suscripciones, pagos, eventos de Mercado Pago, auditoría.
    NO muestra los datos de la casa de cada cliente (gastos, notas, etc.): solo cuenta y pago. */
@@ -54,7 +54,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $aviso = '<div class="o">Link de un solo uso (1 hora) para ' . esc((string)$em) . ':<br><code style="word-break:break-all">' . esc(rtrim((string)cfg('APP_URL'), '/') . '/recuperar.php?t=' . $tok) . '</code></div>'; }
     } elseif ($a === 'resync') {
       $pre = (string)($_POST['pre'] ?? '');
-      try { mp_sync_preapproval($pdo, $pre); auditar($adminEmail, 'admin_resync', $pre); $aviso = '<div class="o">Sincronizada con Mercado Pago.</div>'; }
+      try { es_paypal($pre) ? pp_sync_suscripcion($pdo, $pre) : mp_sync_preapproval($pdo, $pre); auditar($adminEmail, 'admin_resync', $pre); $aviso = '<div class="o">Sincronizada con ' . (es_paypal($pre) ? 'PayPal' : 'Mercado Pago') . '.</div>'; }
       catch (Throwable $e) { $aviso = '<div class="e">No se pudo sincronizar: ' . esc($e->getMessage()) . '</div>'; }
     }
   }
@@ -66,16 +66,16 @@ $filas = ''; $nAct = $nLect = $nBloq = 0; $mrr = 0;
 foreach ($cuentas as $c) {
   $x = cargar_acceso($pdo, $c); $s = $x['sub'];
   if ($x['acceso'] === 'activo') $nAct++; elseif ($x['acceso'] === 'bloqueado') $nBloq++; else $nLect++;
-  if ($s && $s['estado'] === 'authorized' && $x['acceso'] === 'activo') $mrr += (int)round($s['monto_cent'] * 30 / max(1, (int)$s['periodo_dias']));
+  if ($s && $s['estado'] === 'authorized' && $x['acceso'] === 'activo' && $s['moneda'] === 'ARS') $mrr += (int)round($s['monto_cent'] * 30 / max(1, (int)$s['periodo_dias']));
   $csrf = '<input type="hidden" name="csrf" value="' . esc(csrf_token()) . '"><input type="hidden" name="cuenta" value="' . (int)$c['id'] . '">';
   $opts = ''; foreach (['auto' => 'Automático', 'activo' => 'Cortesía (activo)', 'bloqueado' => 'Bloqueado'] as $k => $l) $opts .= '<option value="' . $k . '"' . ($c['override'] === $k ? ' selected' : '') . '>' . $l . '</option>';
   $filas .= '<tr><td>' . esc($c['nombre']) . '<br><small>' . esc($c['email']) . '</small></td>'
     . '<td><b class="t-' . esc($x['acceso']) . '">' . esc(str_replace('_', ' ', $x['acceso'])) . '</b><br><small>' . esc($x['motivo']) . '</small></td>'
-    . '<td>' . ($s ? esc($s['estado']) . '<br><small>' . plata((int)$s['monto_cent'], $s['moneda']) . ' · próx. ' . cuando($s['proximo_cobro']) . '</small>' : '—') . '</td>'
+    . '<td>' . ($s ? esc($s['estado']) . ' <small>(' . (es_paypal((string)$s['preapproval_id']) ? 'PayPal' : 'MP') . ')</small><br><small>' . plata((int)$s['monto_cent'], $s['moneda']) . ' · próx. ' . cuando($s['proximo_cobro']) . '</small>' : '—') . '</td>'
     . '<td>' . cuando($x['ultimo_pago']) . '</td><td>' . cuando($c['creada']) . '<br><small>últ. ingreso ' . cuando($c['ultimo_login']) . '</small></td>'
     . '<td><form method="post" action="admin.php" class="in"><input type="hidden" name="a" value="override">' . $csrf . '<select name="valor">' . $opts . '</select><button>Guardar</button></form>'
     . '<form method="post" action="admin.php" class="in"><input type="hidden" name="a" value="link_clave">' . $csrf . '<button class="g">Link de clave</button></form>'
-    . ($s ? '<form method="post" action="admin.php" class="in"><input type="hidden" name="a" value="resync"><input type="hidden" name="csrf" value="' . esc(csrf_token()) . '"><input type="hidden" name="pre" value="' . esc($s['preapproval_id']) . '"><button class="g">Sincronizar con MP</button></form>' : '') . '</td></tr>';
+    . ($s ? '<form method="post" action="admin.php" class="in"><input type="hidden" name="a" value="resync"><input type="hidden" name="csrf" value="' . esc(csrf_token()) . '"><input type="hidden" name="pre" value="' . esc($s['preapproval_id']) . '"><button class="g">Sincronizar</button></form>' : '') . '</td></tr>';
 }
 $sinCuenta = $pdo->query('SELECT * FROM suscripciones WHERE cuenta_id IS NULL ORDER BY id DESC LIMIT 50')->fetchAll();
 $pagos = $pdo->query('SELECT p.*, c.email FROM pagos p LEFT JOIN suscripciones s ON s.preapproval_id = p.preapproval_id LEFT JOIN cuentas c ON c.id = s.cuenta_id ORDER BY p.id DESC LIMIT 100')->fetchAll();
@@ -104,10 +104,10 @@ a.btn{background:var(--ac);color:#fff;padding:8px 14px;border-radius:10px;text-d
 </style></head><body><div class="w">
 <div class="top"><h1>Zuhause · Panel</h1><div><a class="btn" href="admin.php?descargar=centro">Descargar para Centro de operaciones</a> &nbsp; <a href="admin.php?salir=1">Salir</a></div></div>
 <?= $aviso ?>
-<div class="k"><div><b><?= count($cuentas) ?></b><span>Clientes</span></div><div><b><?= $nAct ?></b><span>Con acceso activo</span></div><div><b><?= $nLect ?></b><span>Solo lectura (no pagan)</span></div><div><b><?= $nBloq ?></b><span>Bloqueados</span></div><div><b><?= esc(plata($mrr)) ?></b><span>Ingreso mensual de activos</span></div></div>
+<div class="k"><div><b><?= count($cuentas) ?></b><span>Clientes</span></div><div><b><?= $nAct ?></b><span>Con acceso activo</span></div><div><b><?= $nLect ?></b><span>Solo lectura (no pagan)</span></div><div><b><?= $nBloq ?></b><span>Bloqueados</span></div><div><b><?= esc(plata($mrr)) ?></b><span>Ingreso mensual en pesos (activos)</span></div></div>
 <h2>Clientes</h2><div class="tw"><table><tr><th>Cliente</th><th>Acceso</th><th>Suscripción</th><th>Último pago</th><th>Alta</th><th>Acciones</th></tr><?= $filas ?: '<tr><td colspan="6">Todavía no hay clientes.</td></tr>' ?></table></div>
-<?php if ($tSin): ?><h2>Pagaron pero no crearon su acceso</h2><div class="tw"><table><tr><th>Email del pago</th><th>Estado</th><th>Fecha</th><th>ID Mercado Pago</th></tr><?= $tSin ?></table></div><?php endif; ?>
+<?php if ($tSin): ?><h2>Pagaron pero no crearon su acceso</h2><div class="tw"><table><tr><th>Email del pago</th><th>Estado</th><th>Fecha</th><th>ID de la suscripción</th></tr><?= $tSin ?></table></div><?php endif; ?>
 <h2>Pagos (cuotas)</h2><div class="tw"><table><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Monto</th></tr><?= $tPag ?: '<tr><td colspan="4">Sin pagos todavía.</td></tr>' ?></table></div>
-<h2>Notificaciones de Mercado Pago</h2><div class="tw"><table><tr><th>Recibido</th><th>Tema</th><th>ID</th><th>Firma</th><th>Resultado</th></tr><?= $tEv ?: '<tr><td colspan="5">Ninguna todavía.</td></tr>' ?></table></div>
+<h2>Notificaciones de Mercado Pago y PayPal</h2><div class="tw"><table><tr><th>Recibido</th><th>Tema</th><th>ID</th><th>Firma</th><th>Resultado</th></tr><?= $tEv ?: '<tr><td colspan="5">Ninguna todavía.</td></tr>' ?></table></div>
 <h2>Auditoría</h2><div class="tw"><table><tr><th>Fecha</th><th>Quién</th><th>Acción</th><th>Detalle</th></tr><?= $tAu ?></table></div>
 </div></body></html>

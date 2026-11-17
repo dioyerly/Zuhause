@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/lib/mp.php';
-/* Alta de credenciales después de pagar. Mercado Pago redirige acá (back_url) y además
+require_once __DIR__ . '/lib/paypal.php';
+/* Alta de credenciales después de pagar. Mercado Pago (back_url) o PayPal (return_url, con ?subscription_id=) redirigen acá y además
    enviamos el mismo link por mail. El pago SIEMPRE se verifica contra la API de MP. */
 sesion('nc_alta');
 $app = rtrim((string)cfg('APP_URL'), '/') . '/app.html';
-$pid = (string)($_POST['pid'] ?? $_GET['pid'] ?? $_GET['preapproval_id'] ?? '');
+$pid = (string)($_POST['pid'] ?? $_GET['pid'] ?? $_GET['preapproval_id'] ?? $_GET['subscription_id'] ?? '');
 
 function pantalla_aviso(string $t, string $msg, string $cls = 'e', string $extra = ''): void { pagina($t, '<h1>' . esc($t) . '</h1><div class="' . $cls . '">' . esc($msg) . '</div>' . $extra); exit; }
 
@@ -16,12 +16,12 @@ $pdo = db();
 if (freno_bloqueado('alta_ip', '', 30, 15)) pantalla_aviso('Demasiados intentos', 'Esperá unos minutos y volvé a intentar.');
 freno_falla('alta_ip', '');   // cada visita cuenta: limita el uso de la API de MP
 
-try { $sub = mp_sync_preapproval($pdo, $pid); }
+try { $sub = es_paypal($pid) ? pp_sync_suscripcion($pdo, $pid) : mp_sync_preapproval($pdo, $pid); }
 catch (MpNoEncontrado $e) { pantalla_aviso('No encontramos tu suscripción', 'Revisá el link que te llegó por mail.'); }
 catch (Throwable $e) { error_log('alta: ' . $e->getMessage()); pantalla_aviso('Estamos verificando tu pago', 'No pudimos confirmarlo en este momento. Recargá esta página en un minuto.', 'e'); }
 
 if (!empty($sub['cuenta_id'])) pantalla_aviso('Tu acceso ya está creado', 'Ingresá con tu email y tu clave.', 'o', '<a class="b" href="' . esc($app) . '">Ir a Zuhause</a><p style="margin-top:14px"><small>¿Olvidaste tu clave? <a href="' . esc($app) . 'recuperar.php">Recuperarla</a></small></p>');
-if ($sub['estado'] !== 'authorized') pantalla_aviso('Esperando la confirmación del pago', 'Mercado Pago todavía no confirmó tu suscripción. Recargá esta página en un minuto.', 'e');
+if ($sub['estado'] !== 'authorized') pantalla_aviso('Esperando la confirmación del pago', (es_paypal($pid) ? 'PayPal' : 'Mercado Pago') . ' todavía no confirmó tu suscripción. Recargá esta página en un minuto.', 'e');
 
 $err = '';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
@@ -45,7 +45,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $u = $pdo->prepare('UPDATE suscripciones SET cuenta_id = ? WHERE preapproval_id = ? AND cuenta_id IS NULL'); $u->execute([$cid, $pid]);
         if ($u->rowCount() !== 1) { $pdo->rollBack(); pantalla_aviso('Tu acceso ya está creado', 'Ingresá con tu email y tu clave.', 'o', '<a class="b" href="' . esc($app) . '">Ir a Zuhause</a>'); }
         $pdo->commit();
-        auditar($email, 'alta_cuenta', 'preapproval ' . $pid);
+        auditar($email, 'alta_cuenta', (es_paypal($pid) ? 'paypal ' : 'preapproval ') . $pid);
         session_regenerate_id(true); $_SESSION = [];
         enviar_mail($email, 'Tu cuenta de Zuhause está lista', "Hola $nombre,\n\nTu cuenta quedó creada. Entrá desde:\n$app\n\nUsuario: $email\n");
         pantalla_aviso('¡Listo!', 'Tu cuenta quedó creada. Ya podés entrar con tu email y tu clave.', 'o', '<a class="b" href="' . esc($app) . '">Entrar a Zuhause</a>');
@@ -59,7 +59,7 @@ $form = '<h1>Creá tu acceso</h1><p>Tu suscripción está confirmada. Elegí la 
   . '<form method="post" action="alta.php"><input type="hidden" name="csrf" value="' . esc(csrf_token()) . '"><input type="hidden" name="pid" value="' . esc($pid) . '">'
   . '<label for="n">Tu nombre</label><input id="n" name="nombre" required maxlength="120" autocomplete="name" value="' . esc((string)($_POST['nombre'] ?? '')) . '">'
   . '<label for="e">Email</label><input id="e" name="email" type="email" required maxlength="190" autocomplete="email" value="' . esc($emailFijo ? $sub['payer_email'] : (string)($_POST['email'] ?? '')) . '"' . ($emailFijo ? ' readonly' : '') . '>'
-  . ($emailFijo ? '<small>Es el email de tu pago en Mercado Pago.</small>' : '')
+  . ($emailFijo ? '<small>Es el email de tu pago en ' . (es_paypal($pid) ? 'PayPal' : 'Mercado Pago') . '.</small>' : '')
   . '<label for="c">Clave (mínimo 10 caracteres)</label><input id="c" name="clave" type="password" required minlength="10" autocomplete="new-password">'
   . '<label for="c2">Repetí la clave</label><input id="c2" name="clave2" type="password" required minlength="10" autocomplete="new-password">'
   . '<button type="submit">Crear mi cuenta</button></form>';

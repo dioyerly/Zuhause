@@ -55,9 +55,14 @@ function mp_sync_preapproval(PDO $pdo, string $id): array {
   $email = normalizar_email((string)($p['payer_email'] ?? ''));
   if (!email_valido($email)) $email = '';
   $estado = in_array(($p['status'] ?? ''), ['pending', 'authorized', 'paused', 'cancelled'], true) ? (string)$p['status'] : 'pending';
-  $now = ahora();
   $datos = [$email, $estado, mb_substr((string)($p['reason'] ?? ''), 0, 255), a_centavos($ar['transaction_amount'] ?? 0),
     mb_substr((string)($ar['currency_id'] ?? 'ARS'), 0, 8), $dias, fecha_mp($p['next_payment_date'] ?? null), fecha_mp($p['date_created'] ?? null), fecha_mp($p['last_modified'] ?? null)];
+  return guardar_suscripcion($pdo, $id, $datos);
+}
+
+/* Guarda (crea o actualiza) una suscripción de cualquier medio de pago. $datos = [email, estado, motivo, monto_cent, moneda, periodo_dias, proximo_cobro, creada_en_origen, modificada_en_origen]. */
+function guardar_suscripcion(PDO $pdo, string $id, array $datos): array {
+  $now = ahora();
   $pdo->beginTransaction();
   try {
     $st = $pdo->prepare('SELECT * FROM suscripciones WHERE preapproval_id = ? FOR UPDATE'); $st->execute([$id]); $cur = $st->fetch();

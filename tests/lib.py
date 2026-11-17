@@ -1,5 +1,5 @@
 import json, hmac, hashlib, subprocess, urllib.request, urllib.error, http.cookiejar, re, time, datetime, sys
-BASE = "http://127.0.0.1:8791"; MP = "http://127.0.0.1:8792"; SECRET = "secreto-de-prueba-123"
+BASE = "http://127.0.0.1:8791"; MP = "http://127.0.0.1:8792"; PP = "http://127.0.0.1:8793"; SECRET = "secreto-de-prueba-123"
 ROOT = __file__.rsplit("/tests/", 1)[0]
 OK = 0; BAD = 0
 def check(nombre, cond, extra=""):
@@ -68,3 +68,17 @@ def cuota(id, pre_id, estado="processed", pago="approved", monto=4000, retry=0, 
 def mail_log():
     try: return open(ROOT + "/storage/mail.log", encoding="utf-8").read()
     except FileNotFoundError: return ""
+
+def pp_set(sub=None, tx=None, firma_ok=None, reset=False):
+    d = {"sub": sub or {}, "tx": tx or {}, "reset": reset}
+    if firma_ok is not None: d["firma_ok"] = firma_ok
+    Client().req("POST", "/__set", d, base=PP)
+def pp_llamadas(): return Client().req("GET", "/__llamadas", base=PP)[1]
+def pp_sub(id, estado="ACTIVE", email="bob@example.com", prox_dias=30):
+    return {id: {"id": id, "plan_id": "P-TEST", "status": estado, "status_update_time": iso(0), "start_time": iso(0), "create_time": iso(0),
+        "subscriber": {"email_address": email}, "billing_info": {"next_billing_time": iso(prox_dias)}}}
+def pp_tx(id, estado="COMPLETED", valor="9.00", dias=0):
+    return {"id": id, "status": estado, "time": iso(dias), "amount_with_breakdown": {"gross_amount": {"currency_code": "USD", "value": valor}}}
+def pp_webhook(evento, recurso, **hdr):
+    h = {"paypal-transmission-id": "t1", "paypal-transmission-sig": "s", "paypal-transmission-time": "now", "paypal-cert-url": "https://x", "paypal-auth-algo": "SHA256withRSA"}; h.update(hdr)
+    return Client().req("POST", "/paypal-webhook.php", {"event_type": evento, "resource": recurso}, h)
