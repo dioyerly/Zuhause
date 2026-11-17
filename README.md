@@ -87,13 +87,13 @@ Las pruebas automáticas usan un Mercado Pago **simulado** con la forma de respu
 Convive con Mercado Pago: los clientes de Argentina siguen pagando en pesos, y los del exterior pagan con PayPal (tarjeta internacional o cuenta PayPal). Las suscripciones de PayPal se guardan en las mismas tablas (su id empieza con `I-`), así que el acceso, el panel y el Centro de operaciones funcionan igual.
 
 1. En PayPal (cuenta Business) → *Suscripciones* → **Crear plan** (producto Zuhause, cobro mensual en **USD**, con 3 días de prueba si querés). Copiá el **ID del plan** (empieza con `P-`).
-2. En developer.paypal.com → Apps & Credentials → tu app → copiá **Client ID** y **Secret**. Probá primero con *Sandbox* (`PAYPAL_MODE => 'sandbox'`) y después pasá a *Live*.
+2. En PayPal → Suscripciones → *Administrar suscripciones* → el botón de PayPal trae el **Client ID** (público) y el **ID del plan**; el **Secret** está en developer.paypal.com → Apps & Credentials → tu app. Probá primero con *Sandbox* (`PAYPAL_MODE => 'sandbox'`) y después pasá a *Live*.
 3. En esa app → **Webhooks** → URL `https://TU-DOMINIO/paypal-webhook.php`, eventos `BILLING.SUBSCRIPTION.*` y `PAYMENT.SALE.*` → copiá el **Webhook ID**.
-4. En `config.php` completá `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `PAYPAL_PLAN_ID`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_MODE` (las claves las pegás solo vos, nunca en un chat ni en GitHub).
-5. En `index.html` (líneas de arriba del `<script>`): `PAYPAL_ACTIVO = true` y `PAYPAL_PRECIO = 'USD 9 por mes'` (el mismo precio del plan). Aparece el botón **Pagar desde el exterior con PayPal**.
+4. En `config.php` completá `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_MODE` (las claves las pegás solo vos, nunca en un chat ni en GitHub).
+5. En `index.html` (líneas de arriba del `<script>`): `PAYPAL_CLIENT_ID` y `PAYPAL_PLAN_ID` (ya cargados), `PAYPAL_PRECIO = 'USD 9 por mes'` (el mismo precio del plan) y `PAYPAL_ACTIVO = true` **solo cuando el `config.php` y el webhook estén listos**. Aparecen los botones de PayPal y de tarjeta.
 
-Flujo: botón → `suscribir-paypal.php` crea la suscripción en PayPal → el cliente la aprueba → vuelve a `alta.php?subscription_id=...` → crea su usuario y su clave. PayPal avisa por `paypal-webhook.php` (activación, cobros, cancelación); la app siempre le pregunta a PayPal el estado real.
+Flujo: botón de PayPal en la landing → el cliente aprueba la suscripción → la landing lo manda a `alta.php?subscription_id=...` → crea su usuario y su clave. PayPal avisa por `paypal-webhook.php` (activación, cobros, cancelación); la app siempre le pregunta a PayPal el estado real.
 
-Avisos al dueño (a `ADMIN_EMAIL`): cobro fallido, suscripción cancelada o suspendida, y cuando falla crear una suscripción.
+Avisos al dueño (a `ADMIN_EMAIL`): cobro fallido, suscripción cancelada o suspendida, y suscripción suspendida.
 
 Pruebas: `tests/run.sh t4_paypal.py` (PayPal simulado, no verificado contra PayPal real: probá en Sandbox antes de cobrar).

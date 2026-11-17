@@ -2,17 +2,6 @@ from lib import *
 import lib
 pp_set(reset=True); mp_set(reset=True)
 SID = "I-BOBSUB000001"
-print("== PayPal: iniciar suscripción")
-c = Client()
-s, j, t, h = c.req("GET", "/suscribir-paypal.php"); check("GET redirige al inicio, no crea nada", s in (301, 302) and pp_llamadas() == [])
-s, j, t, h = c.form("/suscribir-paypal.php", {"web": "bot"}); check("honeypot: no crea suscripción", pp_llamadas() == [] and s == 200 and t == "")
-s, j, t, h = c.form("/suscribir-paypal.php", {}); check("POST redirige a PayPal para aprobar", s in (301, 302) and h.get("Location", "").startswith("http://paypal.example/approve?ba=I-NUEVA"), str(h.get("Location")))
-body = Client().req("POST", "/__ultimo", {}, base=PP)[1]
-check("plan, return_url y cancel_url correctos", body["plan_id"] == "P-TEST" and body["application_context"]["return_url"] == BASE + "/alta.php" and body["application_context"]["cancel_url"] == BASE + "/")
-check("sin datos de la persona ni claves en el cuerpo", "subscriber" not in body and "secret" not in json.dumps(body))
-for _ in range(12): c.form("/suscribir-paypal.php", {})
-s, j, t, h = c.form("/suscribir-paypal.php", {}); check("freno de intentos repetidos", s == 200 and "Demasiados intentos" in t)
-
 print("== PayPal: vuelta del cliente (alta)")
 pp_set(reset=True)
 s, j, t, h = Client().req("GET", "/alta.php?subscription_id=I-NOEXISTE12345"); check("suscripción inexistente en PayPal", "No encontramos" in t)

@@ -21,7 +21,6 @@ return [
   // developer.paypal.com > Apps & Credentials > (Live) tu app. Las claves las pegás vos acá, nunca en un chat ni en GitHub.
   'PAYPAL_CLIENT_ID'  => '',
   'PAYPAL_SECRET'     => '',
-  'PAYPAL_PLAN_ID'    => '',   // el ID del plan de suscripción que creás en PayPal (empieza con P-)
   'PAYPAL_WEBHOOK_ID' => '',   // ID del webhook de la app (URL https://TU-DOMINIO/paypal-webhook.php)
   'PAYPAL_MODE'       => 'live',   // 'sandbox' para probar con cuentas de prueba
 

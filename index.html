@@ -32,7 +32,7 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
 .btn:hover{background-position:100% 0;transform:translateY(-2px);box-shadow:0 14px 34px -10px rgba(92,26,46,.9)}
 .btn.sm{padding:11px 20px;font-size:.95rem}
 .btn.xl{padding:22px 44px;font-size:1.25rem}
-.pp{margin:14px 0 0}.pp[hidden]{display:none}.btn.pay{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55);box-shadow:none;padding:14px 26px;font-size:1rem;cursor:pointer}.btn.pay:hover{background:rgba(255,255,255,.08)}.pp small{display:block;color:var(--mist);margin-top:8px;font-size:.88rem}
+.pp{margin:18px 0 0;max-width:360px}.pp[hidden]{display:none}.pp small{display:block;color:var(--mist);margin-top:10px;font-size:.88rem}
 
 /* nav */
 .nav{position:fixed;z-index:50;top:14px;left:50%;transform:translateX(-50%);width:min(var(--max),calc(100% - 28px));display:flex;justify-content:space-between;align-items:center;padding:8px 8px 8px 22px;border-radius:999px;background:rgba(12,20,36,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08)}
@@ -260,7 +260,7 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
         <li><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Pagás con Mercado Pago</li>
       </ul>
       <a class="btn xl" data-sub href="#">Suscribirme</a>
-      <form class="pp" id="pp" method="post" action="suscribir-paypal.php" hidden><input type="text" name="web" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px"><button class="btn pay" type="submit">Pagar desde el exterior con PayPal</button><small id="ppn"></small></form>
+      <div class="pp" id="pp" hidden><div id="pp-btn"></div><small id="ppn"></small></div>
       <p class="fine">Empezás con 3 días gratis. Después de suscribirte volvés a la app y creás tu usuario y tu clave.</p>
     </div>
   </div>
@@ -275,6 +275,8 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
 /* ===== EDITÁ SOLO ESTAS LÍNEAS ===== */
 var LINK_SUSCRIPCION = 'https://mpago.la/1zLxPC8';
 var PAYPAL_ACTIVO    = false;            // true cuando PayPal esté configurado (muestra el botón para clientes del exterior)
+var PAYPAL_CLIENT_ID = 'BAAoJ0ZdXt7Fmu_NfuC0dkabclJbo-OKc1fbHL5d92HrcRvmtdX39-6byrpr3gAbvD0r-i1zSklEdXSIrE';   // público (no es el Secret)
+var PAYPAL_PLAN_ID   = 'P-0NJ48131D7653362HNL6G7TI';
 var PAYPAL_PRECIO    = '';               // ej: 'USD 9 por mes' (debe coincidir con el plan de PayPal)
 var WHATSAPP_NUMERO  = '5491126425994';   // código de país + área + número, sin + ni espacios
 var WHATSAPP_MENSAJE = 'Hola, tengo una consulta sobre Zuhause';
@@ -282,7 +284,24 @@ var WHATSAPP_MENSAJE = 'Hola, tengo una consulta sobre Zuhause';
 (function () {
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   $$('[data-sub]').forEach(function (a) { a.href = LINK_SUSCRIPCION; });
-  if (PAYPAL_ACTIVO) { var pf = $('#pp'); if (pf) { pf.hidden = false; $('#ppn').textContent = 'Para tarjetas del exterior o cuenta PayPal' + (PAYPAL_PRECIO ? ' · ' + PAYPAL_PRECIO : ''); } }
+  if (PAYPAL_ACTIVO) {
+    var pf = $('#pp'), pn = $('#ppn');
+    if (pf) {
+      pf.hidden = false; pn.textContent = 'Clientes del exterior: pagá con tarjeta o cuenta PayPal' + (PAYPAL_PRECIO ? ' · ' + PAYPAL_PRECIO : '');
+      var sc = document.createElement('script');
+      sc.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&vault=true&intent=subscription';
+      sc.onload = function () {
+        paypal.Buttons({
+          style: { shape: 'rect', color: 'gold', layout: 'vertical', label: 'subscribe' },
+          createSubscription: function (d, a) { return a.subscription.create({ plan_id: PAYPAL_PLAN_ID }); },
+          onApprove: function (d) { pn.textContent = 'Listo, te llevamos a crear tu usuario…'; location.href = 'alta.php?subscription_id=' + encodeURIComponent(d.subscriptionID); },
+          onError: function () { pn.textContent = 'No pudimos iniciar el pago con PayPal. Probá de nuevo o escribinos por WhatsApp.'; }
+        }).render('#pp-btn');
+      };
+      sc.onerror = function () { pf.hidden = true; };
+      document.head.appendChild(sc);
+    }
+  }
   $$('[data-wa]').forEach(function (a) { a.href = 'https://wa.me/' + WHATSAPP_NUMERO + '?text=' + encodeURIComponent(WHATSAPP_MENSAJE); a.target = '_blank'; a.rel = 'noopener'; });
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

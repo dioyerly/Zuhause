@@ -8,7 +8,7 @@ require_once __DIR__ . '/mp.php';
    su id empieza con "I-" (los de Mercado Pago no), así se distinguen sin cambiar la base. */
 
 function es_paypal(string $id): bool { return (bool)preg_match('/^I-[A-Za-z0-9]{6,60}$/', $id); }
-function pp_configurado(): bool { return (string)cfg('PAYPAL_CLIENT_ID') !== '' && (string)cfg('PAYPAL_SECRET') !== '' && (string)cfg('PAYPAL_PLAN_ID') !== ''; }
+function pp_configurado(): bool { return (string)cfg('PAYPAL_CLIENT_ID') !== '' && (string)cfg('PAYPAL_SECRET') !== ''; }
 function pp_base(): string {
   $b = (string)cfg('PAYPAL_API_BASE', '');
   if ($b !== '') return rtrim($b, '/');
@@ -45,20 +45,6 @@ function pp_req(string $metodo, string $ruta, ?array $cuerpo = null): array {
     throw new RuntimeException("PayPal respondió $code" . ($det !== '' ? ": $det" : ''));
   }
   return is_array($j) ? $j : [];
-}
-
-/* Crea la suscripción en PayPal y devuelve [id, url de aprobación]. PayPal vuelve a alta.php?subscription_id=... */
-function pp_crear_suscripcion(): array {
-  $app = rtrim((string)cfg('APP_URL'), '/');
-  $j = pp_req('POST', '/v1/billing/subscriptions', [
-    'plan_id' => (string)cfg('PAYPAL_PLAN_ID'),
-    'application_context' => ['brand_name' => 'Zuhause', 'locale' => 'es-AR', 'shipping_preference' => 'NO_SHIPPING', 'user_action' => 'SUBSCRIBE_NOW',
-      'return_url' => $app . '/alta.php', 'cancel_url' => $app . '/'],
-  ]);
-  $url = '';
-  foreach (($j['links'] ?? []) as $l) if (($l['rel'] ?? '') === 'approve') { $url = (string)$l['href']; break; }
-  if (empty($j['id']) || $url === '') throw new RuntimeException('PayPal no devolvió el enlace de aprobación.');
-  return [(string)$j['id'], $url];
 }
 
 /* Estados de PayPal -> los de la app (pending | authorized | paused | cancelled) */
