@@ -3,6 +3,7 @@ declare(strict_types=1);
 /* Zuhause SaaS · API de la app (una casa por cuenta).
    login · logout · load · save. El acceso depende del estado de la suscripción. */
 require_once __DIR__ . '/lib/core.php';
+require_once __DIR__ . '/lib/mp.php';
 
 define('MAX_BYTES', 15 * 1024 * 1024);
 cabeceras_seguras();
@@ -54,7 +55,9 @@ if ($acc['acceso'] === 'bloqueado') out(403, ['error' => 'bloqueado', 'acceso' =
 if ($action === 'load') {
   $st = $pdo->prepare('SELECT version, data FROM casa_estado WHERE cuenta_id = ?'); $st->execute([$cid]); $row = $st->fetch();
   $meta = ['acceso' => $acc['acceso'], 'motivo' => $acc['motivo'], 'hasta' => $acc['hasta'] ? date('Y-m-d', (int)$acc['hasta']) : null,
-    'cuenta' => ['email' => $cuenta['email'], 'nombre' => $cuenta['nombre']], 'reactivar_url' => (string)cfg('SUSCRIBIRME_URL')];
+    'cuenta' => ['email' => $cuenta['email'], 'nombre' => $cuenta['nombre']], 'reactivar_url' => (string)cfg('SUSCRIBIRME_URL'),
+    'prueba' => !empty($acc['prueba']), 'manual' => !empty($acc['manual']),
+    'suscripcion' => $acc['sub'] ? ['estado' => $acc['sub']['estado'], 'proximo_cobro' => $acc['sub']['proximo_cobro'] ? substr((string)$acc['sub']['proximo_cobro'], 0, 10) : null] : null];
   if (!$row) out(200, $meta + ['version' => 0, 'data' => null]);
   out(200, $meta + ['version' => (int)$row['version'], 'data' => json_decode($row['data'], true)]);
 }
@@ -82,5 +85,15 @@ if ($action === 'save') {
     $pdo->commit();
   } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); error_log('save: ' . $e->getMessage()); out(500, ['error' => 'No se pudo guardar']); }
   out(200, ['version' => $new]);
+}
+if ($action === 'cancelar') {
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') out(405, ['error' => 'Método no permitido']);
+  $sub = $acc['sub'];
+  if (!$sub || $sub['estado'] !== 'authorized') out(400, ['error' => 'No tenés una suscripción activa para dar de baja.']);
+  if (strpos((string)$sub['preapproval_id'], 'manual-') === 0) out(400, ['error' => 'Tu acceso es de cortesía o de prueba: no tiene cobros que cancelar.']);
+  try { mp_cancelar_preapproval($pdo, (string)$sub['preapproval_id']); }
+  catch (Throwable $e) { error_log('cancelar: ' . $e->getMessage()); out(502, ['error' => 'No se pudo dar de baja ahora. Probá de nuevo en unos minutos.']); }
+  auditar((string)$cuenta['email'], 'baja_suscripcion', (string)$sub['preapproval_id']);
+  out(200, ['ok' => true]);
 }
 out(404, ['error' => 'Acción desconocida']);

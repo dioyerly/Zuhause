@@ -69,7 +69,7 @@ function guardar_suscripcion(PDO $pdo, string $id, array $datos): array {
     if ($cur) {
       // el email del pagador solo se pisa si MP lo informa
       if ($datos[0] === '') $datos[0] = (string)$cur['payer_email'];
-      $pdo->prepare('UPDATE suscripciones SET payer_email=?, estado=?, motivo=?, monto_cent=?, moneda=?, periodo_dias=?, proximo_cobro=?, mp_creada=?, mp_modificada=?, actualizada=? WHERE preapproval_id=?')
+      $pdo->prepare('UPDATE suscripciones SET payer_email=?, estado=?, motivo=?, monto_cent=?, moneda=?, periodo_dias=?, proximo_cobro=COALESCE(?, proximo_cobro), mp_creada=?, mp_modificada=?, actualizada=? WHERE preapproval_id=?')
           ->execute(array_merge($datos, [$now, $id]));
     } else {
       $pdo->prepare('INSERT INTO suscripciones (payer_email, estado, motivo, monto_cent, moneda, periodo_dias, proximo_cobro, mp_creada, mp_modificada, creada, actualizada, preapproval_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
@@ -118,4 +118,30 @@ function mp_avisar_alta(array $sub): void {
   $url = rtrim((string)cfg('APP_URL'), '/') . '/alta.php?pid=' . rawurlencode($sub['preapproval_id']);
   enviar_mail($sub['payer_email'], 'Bienvenido a Zuhause: creá tu acceso',
     "¡Gracias por suscribirte!\n\nPara crear tu usuario y tu clave entrá acá:\n$url\n\nSi ya lo hiciste, ignorá este mensaje.\n");
+}
+
+/* Cancela una suscripción en Mercado Pago y la sincroniza. */
+function mp_cancelar_preapproval(PDO $pdo, string $id): array {
+  if (!mp_id_valido($id)) throw new InvalidArgumentException('id inválido');
+  // Suscripciones creadas a mano desde el panel: no existen en Mercado Pago, se dan de baja solo acá.
+  if (strpos($id, 'manual-') === 0 || strpos($id, 'test-') === 0) {
+    $pdo->prepare('UPDATE suscripciones SET estado = "cancelled", actualizada = ? WHERE preapproval_id = ?')->execute([ahora(), $id]);
+    $st = $pdo->prepare('SELECT * FROM suscripciones WHERE preapproval_id = ?'); $st->execute([$id]);
+    return $st->fetch() ?: [];
+  }
+  $tok = (string)cfg('MP_ACCESS_TOKEN');
+  if ($tok === '') throw new RuntimeException('Falta MP_ACCESS_TOKEN en config.php');
+  $url = rtrim((string)cfg('MP_API_BASE', 'https://api.mercadopago.com'), '/') . '/preapproval/' . rawurlencode($id);
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 12, CURLOPT_CONNECTTIMEOUT => 5,
+    CURLOPT_CUSTOMREQUEST => 'PUT', CURLOPT_POSTFIELDS => json_encode(['status' => 'cancelled']),
+    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $tok, 'Content-Type: application/json', 'Accept: application/json'],
+    CURLOPT_FOLLOWLOCATION => false]);
+  $r = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
+  if ($r === false) throw new RuntimeException('No se pudo contactar a Mercado Pago: ' . $err);
+  if ($code < 200 || $code >= 300) throw new RuntimeException("Mercado Pago respondió $code al cancelar");
+  $j = json_decode($r, true);
+  if (!is_array($j)) throw new RuntimeException('Respuesta de Mercado Pago ilegible');
+  // Sincronizar el estado actualizado
+  return mp_sync_preapproval($pdo, $id);
 }

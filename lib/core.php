@@ -105,14 +105,26 @@ function calcular_acceso(array $cuenta, ?array $sub, ?string $ultimoPagoOk, ?int
   $base = $ultimoPagoOk ? strtotime($ultimoPagoOk) : strtotime((string)($sub['creada'] ?? 'now'));
   $hastaPago = $base + ($ultimoPagoOk ? $periodo : 0) + $g;
   $estado = (string)$sub['estado'];
-  if ($estado === 'authorized') {
-    $prox = !empty($sub['proximo_cobro']) ? strtotime((string)$sub['proximo_cobro']) + $g : 0;
-    $hasta = max($hastaPago, $prox);
-    return $ahora <= $hasta ? ['acceso' => 'activo', 'motivo' => 'Suscripción al día', 'hasta' => $hasta]
-                            : ['acceso' => 'solo_lectura', 'motivo' => 'Cobro pendiente: la suscripción no registra pagos recientes', 'hasta' => $hasta];
+  $prox0 = !empty($sub['proximo_cobro']) ? strtotime((string)$sub['proximo_cobro']) : 0;
+  // Cuenta creada a mano desde el panel (prueba o regalo): vence exactamente en la fecha cargada, sin gracia ni cobros.
+  if (strpos((string)($sub['preapproval_id'] ?? ''), 'manual-') === 0) {
+    $ok = $prox0 > 0 && $ahora <= $prox0 && in_array($estado, ['authorized', 'cancelled'], true);
+    return ['acceso' => $ok ? 'activo' : 'solo_lectura', 'motivo' => ($ok ? 'Acceso manual: ' : 'Acceso manual vencido: ') . (string)($sub['motivo'] ?: 'prueba o regalo'), 'hasta' => $prox0 ?: null, 'prueba' => false, 'manual' => true];
   }
-  if ($ultimoPagoOk && $ahora <= $hastaPago - $g + 0) return ['acceso' => 'activo', 'motivo' => 'Período pagado vigente (suscripción ' . $estado . ')', 'hasta' => $hastaPago - $g];
-  return ['acceso' => 'solo_lectura', 'motivo' => 'Suscripción ' . $estado, 'hasta' => $ultimoPagoOk ? $hastaPago - $g : null];
+  if ($estado === 'authorized') {
+    $prox = $prox0 ? $prox0 + $g : 0;
+    $hasta = max($hastaPago, $prox);
+    // Prueba gratis de Mercado Pago: autorizada, todavía sin cobros y con el primer cobro en el futuro.
+    $enPrueba = !$ultimoPagoOk && $prox0 > $ahora;
+    if ($enPrueba) return ['acceso' => 'activo', 'motivo' => 'Prueba gratis', 'hasta' => $prox0, 'prueba' => true, 'manual' => false];
+    return $ahora <= $hasta ? ['acceso' => 'activo', 'motivo' => 'Suscripción al día', 'hasta' => $hasta, 'prueba' => false, 'manual' => false]
+                            : ['acceso' => 'solo_lectura', 'motivo' => 'Cobro pendiente: la suscripción no registra pagos recientes', 'hasta' => $hasta, 'prueba' => false, 'manual' => false];
+  }
+  // Dio de baja durante la prueba gratis: conserva los días de prueba que le quedan.
+  if ($estado === 'cancelled' && !$ultimoPagoOk && $prox0 > 0 && $ahora <= $prox0)
+    return ['acceso' => 'activo', 'motivo' => 'Prueba gratis (baja pedida, sin cobros)', 'hasta' => $prox0, 'prueba' => true, 'manual' => false];
+  if ($ultimoPagoOk && $ahora <= $hastaPago - $g + 0) return ['acceso' => 'activo', 'motivo' => 'Período pagado vigente (suscripción ' . $estado . ')', 'hasta' => $hastaPago - $g, 'prueba' => false, 'manual' => false];
+  return ['acceso' => 'solo_lectura', 'motivo' => 'Suscripción ' . $estado, 'hasta' => $ultimoPagoOk ? $hastaPago - $g : null, 'prueba' => false, 'manual' => false];
 }
 
 function cargar_acceso(PDO $pdo, array $cuenta): array {

@@ -161,6 +161,7 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
 }
 </style>
 </head>
+
 <body>
 
 <header class="nav">
@@ -274,7 +275,7 @@ h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;letter-spacing:-.03
 <script>
 /* ===== EDITÁ SOLO ESTAS LÍNEAS ===== */
 var LINK_SUSCRIPCION = 'https://mpago.la/1zLxPC8';
-var PAYPAL_ACTIVO    = false;            // true cuando PayPal esté configurado (muestra el botón para clientes del exterior)
+var PAYPAL_ACTIVO    = true;             // true cuando PayPal esté configurado (muestra el botón para clientes del exterior)
 var PAYPAL_CLIENT_ID = 'BAAoJ0ZdXt7Fmu_NfuC0dkabclJbo-OKc1fbHL5d92HrcRvmtdX39-6byrpr3gAbvD0r-i1zSklEdXSIrE';   // público (no es el Secret)
 var PAYPAL_PLAN_ID   = 'P-0NJ48131D7653362HNL6G7TI';
 var PAYPAL_PRECIO    = '';               // ej: 'USD 9 por mes' (debe coincidir con el plan de PayPal)
@@ -335,5 +336,6 @@ var WHATSAPP_MENSAJE = 'Hola, tengo una consulta sobre Zuhause';
   addEventListener('resize', tick); tick();
 })();
 </script>
+<script src="track.js" defer></script>
 </body>
 </html>
