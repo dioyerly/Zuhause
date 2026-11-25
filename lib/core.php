@@ -162,3 +162,35 @@ button,a.b{display:block;width:100%;margin-top:18px;padding:13px;border:0;border
 small{color:var(--mut)}table{width:100%;border-collapse:collapse}
 </style></head><body><div class="c">' . $cuerpo . '</div></body></html>';
 }
+
+/* Ajustes sueltos (clave/valor). La tabla se crea sola la primera vez. */
+function ajuste(string $k, ?string $def = null): ?string {
+  try { db()->exec('CREATE TABLE IF NOT EXISTS ajustes (k VARCHAR(60) NOT NULL PRIMARY KEY, v TEXT NULL) DEFAULT CHARSET=utf8mb4'); $st = db()->prepare('SELECT v FROM ajustes WHERE k = ?'); $st->execute([$k]); $v = $st->fetchColumn(); return $v === false ? $def : (string)$v; }
+  catch (Throwable $e) { return $def; }
+}
+function ajuste_set(string $k, string $v): void {
+  db()->exec('CREATE TABLE IF NOT EXISTS ajustes (k VARCHAR(60) NOT NULL PRIMARY KEY, v TEXT NULL) DEFAULT CHARSET=utf8mb4');
+  db()->prepare('INSERT INTO ajustes (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)')->execute([$k, $v]);
+}
+function token_centro_ok(string $dado): bool {
+  if ($dado === '' || strlen($dado) < 32) return false;
+  $h = ajuste('centro_token_hash');
+  return $h !== null && $h !== '' && hash_equals($h, hash('sha256', $dado));
+}
+function token_centro_conectado(): bool { return (string)ajuste('centro_token_hash') !== ''; }
+
+/* ---- Conexión por código con el Centro de operaciones (sin copiar claves a mano) ---- */
+function centro_codigo_generar(): string {
+  $c = (string)random_int(10000000, 99999999);
+  ajuste_set('centro_codigo', hash('sha256', $c) . '|' . (time() + 600));
+  return $c;
+}
+function centro_emparejar(string $codigo, string $clave): bool {
+  $v = (string)ajuste('centro_codigo'); if ($v === '' || strpos($v, '|') === false) return false;
+  [$h, $exp] = explode('|', $v, 2);
+  if ((int)$exp < time() || !hash_equals($h, hash('sha256', $codigo))) return false;
+  if (strlen($clave) < 32 || strlen($clave) > 200 || !preg_match('/^[A-Za-z0-9_-]+$/', $clave)) return false;
+  ajuste_set('centro_token_hash', hash('sha256', $clave));
+  ajuste_set('centro_codigo', ''); /* el código sirve una sola vez */
+  return true;
+}

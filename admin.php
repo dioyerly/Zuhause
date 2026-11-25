@@ -106,6 +106,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
       $em = q1($pdo, 'SELECT email FROM cuentas WHERE id = ?', [$cid]);
       if ($em) { $tok = crear_token_recuperacion($pdo, $cid, 60); auditar($adminEmail, 'admin_link_clave', "cuenta $cid");
         flash('o', 'Link de un solo uso (1 hora) para ' . esc((string)$em) . ':<br><code style="word-break:break-all">' . esc(rtrim((string)cfg('APP_URL'), '/') . '/recuperar.php?t=' . $tok) . '</code>'); }
+    } elseif ($a === 'centro_codigo') {
+      $cod = centro_codigo_generar(); auditar($adminEmail, 'admin_codigo_centro', 'código de conexión generado');
+      flash('o', '<b>Código de conexión:</b> <code style="font-size:26px;letter-spacing:4px">' . esc(substr($cod, 0, 4) . ' ' . substr($cod, 4)) . '</code><br>Escribilo en tu Centro de operaciones (panel.estrategia.site) → Inicio → <b>Conectar</b>. Sirve una sola vez y vence en 10 minutos.');
     } elseif ($a === 'resync') {
       $pre = (string)($_POST['pre'] ?? '');
       es_paypal($pre) ? pp_sync_suscripcion($pdo, $pre) : mp_sync_preapproval($pdo, $pre); auditar($adminEmail, 'admin_resync', $pre); flash('o', 'Sincronizada con ' . (es_paypal($pre) ? 'PayPal' : 'Mercado Pago') . '.');
@@ -307,6 +310,11 @@ details.card>summary{cursor:pointer;font-weight:700;list-style:none}details.card
   <?php endforeach; if (!$pagos) echo '<tr><td colspan="4" class="mut">Sin pagos todavía. Si hay gente en prueba, el primer cobro aparece cuando termine.</td></tr>'; ?></table></div>
 
 <?php else: /* sistema */ ?>
+  <div class="card"><h3>Centro de operaciones</h3>
+    <p class="mut">Conectá Zuhause a tu Centro (panel.estrategia.site) para ver clientes, pagos y visitas de la landing en un solo lugar. Tocá el botón, y escribí el código en el Centro.</p>
+    <p>Estado: <?= token_centro_conectado() ? '<span class="pill ok">conectado</span>' : '<span class="pill warn">sin conectar</span>' ?></p>
+    <form method="post" action="admin.php"><?= csrf_in('centro_codigo', 'sistema') ?><button><?= token_centro_conectado() ? 'Generar código para renovar la conexión' : 'Generar código de conexión' ?></button></form>
+  </div>
   <?php $ult = q1($pdo, 'SELECT MAX(recibido) FROM eventos_mp'); $okc = fn(bool $b, string $si, string $no) => '<span class="pill ' . ($b ? 'ok' : 'bad') . '">' . ($b ? esc($si) : esc($no)) . '</span>'; ?>
   <div class="card"><h3>Diagnóstico</h3><table style="min-width:0">
     <tr><td>Credencial de Mercado Pago</td><td><?= $okc((string)cfg('MP_ACCESS_TOKEN') !== '', 'cargada', 'falta') ?></td></tr>
