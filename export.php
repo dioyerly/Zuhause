@@ -17,11 +17,13 @@ if ($permitido !== '' && $origen === $permitido) { header('Access-Control-Allow-
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
 function f(int $c, array $d): void { http_response_code($c); echo json_encode($d, JSON_UNESCAPED_UNICODE); exit; }
 $tokenCfg = (string)cfg('EXPORT_TOKEN');
-if ($tokenCfg === '' || strlen($tokenCfg) < 32) f(503, ['error' => 'Exportación no configurada']);
+$ecoKey = (string)cfg('ECOSYSTEM_KEY'); /* clave compartida del Centro de operaciones */
+if (strlen($tokenCfg) < 32 && strlen($ecoKey) < 32) f(503, ['error' => 'Exportación no configurada']);
 if (freno_bloqueado('export', '', 20, 15)) f(429, ['error' => 'Demasiados intentos']);
 $h = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
 $dado = preg_match('/^Bearer\s+(\S+)$/', $h, $m) ? $m[1] : '';
-if (!hash_equals($tokenCfg, $dado)) { freno_falla('export', ''); f(401, ['error' => 'No autorizado']); }
+$okTok = (strlen($tokenCfg) >= 32 && hash_equals($tokenCfg, $dado)) || (strlen($ecoKey) >= 32 && hash_equals($ecoKey, $dado));
+if (!$okTok) { freno_falla('export', ''); f(401, ['error' => 'No autorizado']); }
 $pdo = db();
 $hoyTs = time();
 

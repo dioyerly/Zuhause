@@ -30,6 +30,7 @@ return [
   'ADMIN_PASSWORD_HASH' => '',
   // Token para que el Centro de operaciones lea las métricas. Generá uno: php -r "echo bin2hex(random_bytes(24));"
   'EXPORT_TOKEN' => '',
+  'ECOSYSTEM_KEY' => '', // clave compartida con el Centro de operaciones (32+ caracteres; la misma en todas las apps)
   // Origen desde donde abrís el Centro de operaciones (para permitir la lectura). '' = no permitir lectura desde otra web.
   'EXPORT_ORIGIN' => '',
 
